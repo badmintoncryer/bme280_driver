@@ -207,15 +207,18 @@ int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
     }
 
     if (status == BME280_SUCCESS) {
-        status = i2c_master_read(cmd_handle, data, size, I2C_MASTER_ACK);
+        if (size > 1) {
+            status = i2c_master_read(cmd_handle, data, size-1, I2C_MASTER_ACK);
+        }
     } else {
         goto ERROR;
     }
 
-    // if (size > 1) {
-    //     i2c_master_read(cmd_handle, data, size-1, I2C_MASTER_ACK);
-    // }
-    // i2c_master_read_byte(cmd_handle, data+size-1, I2C_MASTER_ACK);
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_read_byte(cmd_handle, data+size-1, I2C_MASTER_NACK);
+    } else {
+        goto ERROR;
+    }
 
     if (status == BME280_SUCCESS) {
         status = i2c_master_stop(cmd_handle);
@@ -226,7 +229,7 @@ int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
     if (status == BME280_SUCCESS) {
         status = i2c_master_cmd_begin(I2C_NUM_0,
                                       cmd_handle,
-                                      1000 / portTICK_PERIOD_MS);
+                                      10 / portTICK_PERIOD_MS);
     } else {
         goto ERROR;
     }
@@ -234,7 +237,6 @@ int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
     if (status == BME280_SUCCESS) {
         i2c_cmd_link_delete(cmd_handle);
     } else {
-        printf("error 8 %d\n", status);
         goto ERROR;
     }
 
