@@ -1,6 +1,6 @@
 #include "bme280.h"
 
-#define BME280_DEV_ADDR (0x76)
+#define ENABLE_ACK_CHECK (true)
 
 #define BME280_CAST_TO_U16(array, upper_pos, lower_pos) (uint16_t)((((uint16_t)((uint8_t)array[upper_pos])) << 8) | array[lower_pos])
 #define BME280_CAST_TO_S16(array, upper_pos, lower_pos) (int16_t)((((int16_t)((int8_t)array[upper_pos])) << 8) | array[lower_pos])
@@ -27,7 +27,7 @@ typedef struct param_table {
 } param_table_t;
 
 static int8_t bme280_get_adjust_param(param_table_t *param_table);
-static int8_t bme280_compensate_data(bme280_measure_date_t *measure_data);
+static int8_t bme280_compensate_data(bme280_measure_data_t *measure_data);
 static int32_t bme280_compensate_tem(int32_t tem);
 static uint32_t bme280_compensate_pre(int32_t pre);
 static uint32_t bme280_compensate_hum(int32_t hum);
@@ -43,13 +43,13 @@ int8_t bme280_init(bme280_config_t *bme280_config)
     return bme280_get_adjust_param(&param);
 }
 
-
 int8_t bme280_exit()
 {
     /* Do nothing */
+    return BME280_SUCCESS;
 }
 
-int8_t bme280_measure(bme280_measure_date_t *measure_data)
+int8_t bme280_measure(bme280_measure_data_t *measure_data)
 {
     int8_t status;
     uint8_t write_data;
@@ -81,7 +81,7 @@ int8_t bme280_measure(bme280_measure_date_t *measure_data)
     measure_data->raw_pressure = (int32_t)((int32_t)temp_measure_data[0] << 12
                                          | (int32_t)temp_measure_data[1] << 4
                                          | temp_measure_data[2] >> 4);
-    
+
     if (status == BME280_SUCCESS) {
         status = bme280_read_reg(0xFA, temp_measure_data, 3);
         measure_data->raw_tempreture = (int32_t)((int32_t)temp_measure_data[0] << 12
@@ -111,51 +111,137 @@ ERROR:
     return BME280_ERROR;
 }
 
+/* 指定したレジスタに1byteデータを書き込む。
+   BME280への複数バイト書き込みは自動インクリメントが行われないため、1byteのみ書き込む仕様とした */
 int8_t bme280_write_reg(uint8_t reg_addr, uint8_t data)
 {
-    int8_t status;
-    uint8_t write_data[2];
-    int8_t fd;
+    int8_t status = BME280_SUCCESS;
 
-    write_data[0] = reg_addr;
-    write_data[1] = data;
+    i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
+    status = i2c_master_start(cmd_handle);
 
-    status = i2c_open(&fd, 1, BME280_DEV_ADDR);
+    /* I2Cキューにコマンドを全て送り、i2c_master_cmd_begin()でトランザクションを実行する */
+    /* 書き込みを行うデバイスアドレスの送信 */
     if (status == BME280_SUCCESS) {
-        status = i2c_write(&fd, write_data, 2);
+        status = i2c_master_write_byte(cmd_handle,
+                                       (BME280_DEV_ADDR << 1) | I2C_MASTER_WRITE,
+                                       ENABLE_ACK_CHECK);
     } else {
-        return status;
+        goto ERROR;
+    }
+
+    /* 書き込みを行うレジスタアドレスの送信 */
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_write_byte(cmd_handle, reg_addr, ENABLE_ACK_CHECK);
+    } else {
+        goto ERROR;
+    }
+
+    /* 書き込むデータの送信 */
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_write_byte(cmd_handle, data, ENABLE_ACK_CHECK);
+    } else {
+        goto ERROR;
+    }
+
+    /* キューへのコマンド送信の終了 */
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_stop(cmd_handle);
+    } else {
+        goto ERROR;
+    }
+
+    /* キューにあるコマンドのトランザクションの実施 */
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_cmd_begin(I2C_NUM_0,
+                                      cmd_handle,
+                                      10 / portTICK_PERIOD_MS);
+    } else {
+        goto ERROR;
     }
 
     if (status == BME280_SUCCESS) {
-        status = i2c_close(&fd);
+        i2c_cmd_link_delete(cmd_handle);
     } else {
-        return status;
+        goto ERROR;
     }
 
     return status;
+
+ERROR:
+    return BME280_ERROR;
 }
 
 int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
 {
-    int8_t status;
-    int8_t fd;
+    int32_t status;
 
-    status = i2c_open(&fd, 1, BME280_DEV_ADDR);
-
+    i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
+    status = i2c_master_start(cmd_handle);
     if (status == BME280_SUCCESS) {
-        status = i2c_read(&fd, reg_addr, data, size);
+        status = i2c_master_write_byte(cmd_handle,
+                                       (BME280_DEV_ADDR << 1) | I2C_MASTER_WRITE,
+                                       ENABLE_ACK_CHECK);
     } else {
-        return status;
+        goto ERROR;
     }
 
     if (status == BME280_SUCCESS) {
-        status = i2c_close(&fd);
+        status = i2c_master_write_byte(cmd_handle, reg_addr, ENABLE_ACK_CHECK);
     } else {
-        return status;
+        goto ERROR;
+    }
+
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_start(cmd_handle);
+    } else {
+        goto ERROR;
+    }
+
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_write_byte(cmd_handle,
+                                       (BME280_DEV_ADDR << 1) | I2C_MASTER_READ,
+                                       ENABLE_ACK_CHECK);
+    } else {
+        goto ERROR;
+    }
+
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_read(cmd_handle, data, size, I2C_MASTER_ACK);
+    } else {
+        goto ERROR;
+    }
+
+    // if (size > 1) {
+    //     i2c_master_read(cmd_handle, data, size-1, I2C_MASTER_ACK);
+    // }
+    // i2c_master_read_byte(cmd_handle, data+size-1, I2C_MASTER_ACK);
+
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_stop(cmd_handle);
+    } else {
+        goto ERROR;
+    }
+
+    if (status == BME280_SUCCESS) {
+        status = i2c_master_cmd_begin(I2C_NUM_0,
+                                      cmd_handle,
+                                      1000 / portTICK_PERIOD_MS);
+    } else {
+        goto ERROR;
+    }
+
+    if (status == BME280_SUCCESS) {
+        i2c_cmd_link_delete(cmd_handle);
+    } else {
+        printf("error 8 %d\n", status);
+        goto ERROR;
     }
 
     return status;
+
+ERROR:
+    return BME280_ERROR;
 }
 
 static int8_t bme280_get_adjust_param(param_table_t *param_table)
@@ -163,15 +249,17 @@ static int8_t bme280_get_adjust_param(param_table_t *param_table)
     int8_t status;
     uint8_t read_data[32];
 
-    status = bme280_read_reg(0x88, read_data, 24);
+    status = bme280_read_reg(0x88, read_data, 1);
     if (status == BME280_SUCCESS) {
         status = bme280_read_reg(0xA1, &read_data[24], 1);
     } else {
+        printf("error first read reg\n");
         return status;
     }
     if (status == BME280_SUCCESS) {
         status = bme280_read_reg(0xE1, &read_data[25], 7);
     } else {
+        printf("error second read reg\n");
         return status;
     }
 
@@ -194,13 +282,11 @@ static int8_t bme280_get_adjust_param(param_table_t *param_table)
         param_table->dig_h4 = (int16_t)((int16_t)read_data[28] << 4 | (read_data[29] & 0x0F));
         param_table->dig_h5 = (int16_t)((int16_t)read_data[30] << 4 | (read_data[29] & 0xF0));
         param_table->dig_h6 = (int8_t)read_data[31];
-
-    } else {
-        return status;
     }
+    return status;
 }
 
-static int8_t bme280_compensate_data(bme280_measure_date_t *measure_data)
+static int8_t bme280_compensate_data(bme280_measure_data_t *measure_data)
 {
     measure_data->tempreture = bme280_compensate_tem(measure_data->raw_tempreture);
     measure_data->pressure = bme280_compensate_pre(measure_data->raw_pressure);

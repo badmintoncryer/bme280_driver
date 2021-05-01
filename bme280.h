@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "driver/i2c.h"
 
+#define BME280_DEV_ADDR (0x76)
+
 enum bme280_status {
     BME280_ERROR = -1,
     BME280_SUCCESS,
@@ -25,18 +27,18 @@ typedef struct bme280_config {
     uint8_t oversamp_rate_hum;
 } bme280_config_t;
 
-typedef struct bme280_measure_date {
+typedef struct bme280_measure_data {
     int32_t raw_tempreture;
     int32_t raw_pressure;
     int32_t raw_humidity;
     int32_t tempreture;
     uint32_t pressure;
     uint32_t humidity;
-} bme280_measure_date_t;
+} bme280_measure_data_t;
 
 int8_t bme280_init(bme280_config_t *bme280_config);
 int8_t bme280_exit();
-int8_t bme280_measure(bme280_measure_date_t *measure_data);
+int8_t bme280_measure(bme280_measure_data_t *measure_data);
 int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size);
 int8_t bme280_write_reg(uint8_t reg_addr, uint8_t data);
 
