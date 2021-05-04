@@ -1,6 +1,7 @@
 #include "bme280.h"
 
 #define ENABLE_ACK_CHECK (true)
+#define DISABLE_ACK_CHECK (false)
 
 #define BME280_CAST_TO_U16(array, upper_pos, lower_pos) (uint16_t)((((uint16_t)((uint8_t)array[upper_pos])) << 8) | array[lower_pos])
 #define BME280_CAST_TO_S16(array, upper_pos, lower_pos) (int16_t)((((int16_t)((int8_t)array[upper_pos])) << 8) | array[lower_pos])
@@ -185,7 +186,7 @@ int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
         return BME280_ERROR;
     }
 
-    int32_t status;
+    int32_t status = BME280_SUCCESS;
 
     i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
     status = i2c_master_start(cmd_handle);
