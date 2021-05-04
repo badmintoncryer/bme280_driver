@@ -255,13 +255,11 @@ static int8_t bme280_get_adjust_param(param_table_t *param_table)
     if (status == BME280_SUCCESS) {
         status = bme280_read_reg(0xA1, &read_data[24], 1);
     } else {
-        printf("error first read reg\n");
         return status;
     }
     if (status == BME280_SUCCESS) {
         status = bme280_read_reg(0xE1, &read_data[25], 7);
     } else {
-        printf("error second read reg\n");
         return status;
     }
 
