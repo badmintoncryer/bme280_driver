@@ -38,7 +38,10 @@ static bme280_config_t *config_table;
 
 int8_t bme280_init(bme280_config_t *bme280_config)
 {
-    /* Todo */
+    if (bme280_config == NULL) {
+        return BME280_ERROR;
+    }
+
     config_table = bme280_config;
     return bme280_get_adjust_param(&param);
 }
@@ -51,6 +54,10 @@ int8_t bme280_exit()
 
 int8_t bme280_measure(bme280_measure_data_t *measure_data)
 {
+    if (measure_data == NULL) {
+        return BME280_ERROR;
+    }
+
     int8_t status;
     uint8_t write_data;
     uint8_t is_measuring;
@@ -174,6 +181,10 @@ ERROR:
 
 int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
 {
+    if (data == NULL) {
+        return BME280_ERROR;
+    }
+
     int32_t status;
 
     i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
@@ -248,6 +259,10 @@ ERROR:
 
 static int8_t bme280_get_adjust_param(param_table_t *param_table)
 {
+    if (param_table == NULL) {
+        return BME280_ERROR;
+    }
+
     int8_t status;
     uint8_t read_data[32];
 
@@ -288,6 +303,10 @@ static int8_t bme280_get_adjust_param(param_table_t *param_table)
 
 static int8_t bme280_compensate_data(bme280_measure_data_t *measure_data)
 {
+    if (measure_data == NULL) {
+        return BME280_ERROR;
+    }
+
     measure_data->tempreture = bme280_compensate_tem(measure_data->raw_tempreture);
     measure_data->pressure = bme280_compensate_pre(measure_data->raw_pressure);
     measure_data->humidity = bme280_compensate_hum(measure_data->raw_humidity);
