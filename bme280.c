@@ -35,16 +35,34 @@ static uint32_t bme280_compensate_hum(int32_t hum);
 
 static int32_t t_fine;
 static param_table_t param;
-static bme280_config_t *config_table;
+static bme280_config_t config_table;
 
 int8_t bme280_init(bme280_config_t *bme280_config)
 {
     if (bme280_config == NULL) {
         return BME280_ERROR;
     }
+    uint8_t hardware_id = 0;
+    uint8_t status = BME280_SUCCESS;
 
-    config_table = bme280_config;
-    return bme280_get_adjust_param(&param);
+    status = bme280_read_reg(0xD0, &hardware_id, 1);
+    if (status == BME280_SUCCESS) {
+        if (hardware_id != 0x60) {
+            printf("This device is not BME280.\n");
+            goto ERROR;
+        }
+        config_table.dev_addr = bme280_config->dev_addr;
+        config_table.oversamp_rate_hum = bme280_config->oversamp_rate_hum;
+        config_table.oversamp_rate_pre = bme280_config->oversamp_rate_pre;
+        config_table.oversamp_rate_tem = bme280_config->oversamp_rate_tem;
+
+        return bme280_get_adjust_param(&param);
+    } else {
+        goto ERROR;
+    }
+
+ERROR:
+    return BME280_ERROR;
 }
 
 int8_t bme280_exit()
@@ -62,14 +80,15 @@ int8_t bme280_measure(bme280_measure_data_t *measure_data)
     int8_t status;
     uint8_t write_data;
     uint8_t is_measuring;
-    uint8_t temp_measure_data[3];
+    uint8_t temp_measure_data[8];
 
-    write_data = config_table->oversamp_rate_hum;
+    write_data = config_table.oversamp_rate_hum;
     status = bme280_write_reg(0xF2, write_data);
 
-    write_data = config_table->oversamp_rate_tem << 5
-               | config_table->oversamp_rate_pre << 2
-               | 0x01;
+    write_data = (config_table.oversamp_rate_tem << 5)
+               | (config_table.oversamp_rate_pre << 2)
+               | (0x01);
+
     if (status == BME280_SUCCESS) {
         status = bme280_write_reg(0xF4, write_data);
     } else {
@@ -85,24 +104,16 @@ int8_t bme280_measure(bme280_measure_data_t *measure_data)
         }
     } while (is_measuring != 0);
 
-    status = bme280_read_reg(0xF7, temp_measure_data, 3);
-    measure_data->raw_pressure = (int32_t)((int32_t)temp_measure_data[0] << 12
-                                         | (int32_t)temp_measure_data[1] << 4
-                                         | temp_measure_data[2] >> 4);
-
+    status = bme280_read_reg(0xF7, temp_measure_data, 8);
     if (status == BME280_SUCCESS) {
-        status = bme280_read_reg(0xFA, temp_measure_data, 3);
-        measure_data->raw_tempreture = (int32_t)((int32_t)temp_measure_data[0] << 12
-                                               | (int32_t)temp_measure_data[1] << 4
-                                               | temp_measure_data[2] >> 4);
-    } else {
-        goto ERROR;
-    }
-
-    if (status == BME280_SUCCESS) {
-        status = bme280_read_reg(0xFD, temp_measure_data, 2);
-        measure_data->raw_humidity = (int32_t)((int32_t)temp_measure_data[0] << 8
-                                             | temp_measure_data[1]);
+        measure_data->raw_pressure = (int32_t)((int32_t)temp_measure_data[0] << 12
+                                             | (int32_t)temp_measure_data[1] << 4
+                                             | temp_measure_data[2] >> 4);
+        measure_data->raw_tempreture = (int32_t)((int32_t)temp_measure_data[3] << 12
+                                               | (int32_t)temp_measure_data[4] << 4
+                                               | temp_measure_data[5] >> 4);
+        measure_data->raw_humidity = (int32_t)((int32_t)temp_measure_data[6] << 8
+                                             | temp_measure_data[7]);
     } else {
         goto ERROR;
     }
@@ -112,10 +123,10 @@ int8_t bme280_measure(bme280_measure_data_t *measure_data)
     } else {
         goto ERROR;
     }
-
     return status;
 
 ERROR:
+    printf("bme280_measurement is failed.\n");
     return BME280_ERROR;
 }
 
@@ -163,7 +174,7 @@ int8_t bme280_write_reg(uint8_t reg_addr, uint8_t data)
     if (status == BME280_SUCCESS) {
         status = i2c_master_cmd_begin(I2C_NUM_0,
                                       cmd_handle,
-                                      10 / portTICK_PERIOD_MS);
+                                      1000 / portTICK_PERIOD_MS);
     } else {
         goto ERROR;
     }
@@ -241,7 +252,7 @@ int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size)
     if (status == BME280_SUCCESS) {
         status = i2c_master_cmd_begin(I2C_NUM_0,
                                       cmd_handle,
-                                      10 / portTICK_PERIOD_MS);
+                                      1000 / portTICK_PERIOD_MS);
     } else {
         goto ERROR;
     }
@@ -267,7 +278,7 @@ static int8_t bme280_get_adjust_param(param_table_t *param_table)
     int8_t status;
     uint8_t read_data[32];
 
-    status = bme280_read_reg(0x88, read_data, 1);
+    status = bme280_read_reg(0x88, read_data, 24);
     if (status == BME280_SUCCESS) {
         status = bme280_read_reg(0xA1, &read_data[24], 1);
     } else {
