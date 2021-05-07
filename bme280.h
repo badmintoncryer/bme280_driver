@@ -36,10 +36,55 @@ typedef struct bme280_measure_data {
     uint32_t humidity;
 } bme280_measure_data_t;
 
+/**
+ * @brief Initialization of BME280
+ *
+ * @param bme280_config Pointer to the data structure that stores the configurations
+ * @return
+ *      - BME280_SUCCESS   Success
+ *      - BME280_ERROR   Error
+ */
 int8_t bme280_init(bme280_config_t *bme280_config);
+
+/**
+ * @brief Perfome BME280 exit. At present, nothing is being done.
+ * 
+ * @return
+ *      - BME280_SUCCESS   Success
+ */
 int8_t bme280_exit();
+
+/**
+ * @brief Conducting measurements and acquiring data
+ * 
+ * @param measure_data Pointer to the measurement data structure
+ * @return
+ *      - BME280_SUCCESS   Success
+ *      - BME280_ERROR   Error
+ */
 int8_t bme280_measure(bme280_measure_data_t *measure_data);
+
+/**
+ * @brief Reading register data
+ * 
+ * @param reg_addr Register address
+ * @param data pointer to the data array which stores register data
+ * @param size Number of bytes to read
+ * @return
+ *      - BME280_SUCCESS   Success
+ *      - BME280_ERROR   Error
+ */
 int8_t bme280_read_reg(uint8_t reg_addr, uint8_t *data, uint8_t size);
+
+/**
+ * @brief Writing data to registers
+ *
+ * @param reg_addr Register address
+ * @param data Pointer to the data to write
+ * @return
+ *      - BME280_SUCCESS   Success
+ *      - BME280_ERROR   Error
+ */
 int8_t bme280_write_reg(uint8_t reg_addr, uint8_t data);
 
 #endif /* __BME280_H__ */
