@@ -31,7 +31,7 @@ typedef struct bme280_measure_data {
     int32_t raw_tempreture;
     int32_t raw_pressure;
     int32_t raw_humidity;
-    int32_t tempreture;
+    int32_t temperature;
     uint32_t pressure;
     uint32_t humidity;
 } bme280_measure_data_t;

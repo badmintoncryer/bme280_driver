@@ -319,7 +319,7 @@ static int8_t bme280_compensate_data(bme280_measure_data_t *measure_data)
         return BME280_ERROR;
     }
 
-    measure_data->tempreture = bme280_compensate_tem(measure_data->raw_tempreture);
+    measure_data->temperature = bme280_compensate_tem(measure_data->raw_tempreture);
     measure_data->pressure = bme280_compensate_pre(measure_data->raw_pressure);
     measure_data->humidity = bme280_compensate_hum(measure_data->raw_humidity);
 
